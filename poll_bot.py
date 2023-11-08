@@ -30,12 +30,28 @@ logger = logging.getLogger(__name__)
 async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Save data from admin chat with /start """
     chat_id = update.message.chat.id
+    #print(update)
     if str(chat_id) == ADMIN_CHAT_ID:
         await update.message.reply_text("Welcome in admin chat!")
     else:
         #message to admin chat
         #message = f'/start message was recieved from chat {chat_id}'
-        write_json('add_chat_data.json', update.to_dict())
+        #write_json('add_chat_data.json', update.to_dict())
+        await context.bot.send_message(
+            ADMIN_CHAT_ID,
+            "Someone is trying to update poll chat id!\n"
+            f"If it is OK type command /update_chat_id {chat_id}",
+            parse_mode=ParseMode.HTML,
+    )
+        
+
+async def update_chat_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Save data from admin chat with /start """
+    poll_chat_id = context.args[0]
+    chat_id = update.message.chat.id
+    if str(chat_id) == ADMIN_CHAT_ID:
+        update_poll_chat_id(CONFIG_PATH, poll_chat_id)
+        await update.message.reply_text(f"Poll chat id was updated to {poll_chat_id}!")
 
 
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -73,7 +89,8 @@ async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Sends a predefined poll"""
     #chat_id = update.message.chat.id
     if str(update.message.chat.id) == ADMIN_CHAT_ID:
-        chat_id = POLL_CHAT_ID
+        config = read_config(CONFIG_PATH)
+        chat_id = config.get('tgbot', 'POLL_CHAT_ID')
         questions = ["Да", "Не в этот раз"]
         try:
             last_poll = get_last_poll(DB_NAME)
@@ -167,7 +184,8 @@ def main() -> None:
     """Run bot."""
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", add_chat))
+    application.add_handler(CommandHandler("add_chat", add_chat))
+    application.add_handler(CommandHandler("update_chat_id", update_chat_id))
     application.add_handler(CommandHandler("poll", poll))
     application.add_handler(CommandHandler("close_poll", close_poll))
     application.add_handler(MessageHandler(filters.Regex('#random')|filters.Regex('#rc'), receive_meet_result))
@@ -178,12 +196,12 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    config = read_config('config.ini')
+    CONFIG_PATH = 'config.ini'
+    config = read_config(CONFIG_PATH)
     BOT_TOKEN = config.get('tgbot', 'TOKEN')
     #FILE_NAME = config.get('gsheet', 'FILE_NAME')
     CLOSE_TIME_SEC = int(config.get('tgbot', 'CLOSE_TIME_SEC'))
     DB_NAME = config.get('tgbot', 'DB_NAME')
     ADMIN_CHAT_ID = config.get('tgbot', 'ADMIN_CHAT_ID')
-    POLL_CHAT_ID = config.get('tgbot', 'POLL_CHAT_ID')
     POll_IMG_URL = config.get('tgbot', 'POll_IMG_URL')
     main()
