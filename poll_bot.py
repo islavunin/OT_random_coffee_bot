@@ -1,10 +1,9 @@
 """
 OT_random_coffee_bot
 """
-#from rcbot_pygsheets import *
-from tinydb_utils import *
 
 import logging
+from time import time, strftime, localtime
 
 from telegram import Update
 from telegram.constants import ParseMode
@@ -17,6 +16,19 @@ from telegram.ext import (
     filters,
 )
 
+from tinydb_utils import (
+    read_config,
+    update_tinydb,
+    update_poll_chat_id,
+    update_last_poll,
+    get_last_poll,
+    remove_answer,
+    parse_pair,
+    update_match_status,
+    main_message,
+    add_test_cands
+)
+
 # Enable logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -27,23 +39,30 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
+CONFIG_PATH = 'config.ini'
+config = read_config(CONFIG_PATH)
+BOT_TOKEN = config.get('tgbot', 'TOKEN')
+#FILE_NAME = config.get('gsheet', 'FILE_NAME')
+CLOSE_TIME_SEC = int(config.get('tgbot', 'CLOSE_TIME_SEC'))
+DB_NAME = config.get('tgbot', 'DB_NAME')
+ADMIN_CHAT_ID = config.get('tgbot', 'ADMIN_CHAT_ID')
+POll_IMG_URL = config.get('tgbot', 'POll_IMG_URL')
+
+
 async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Save data from admin chat with /start """
     chat_id = update.message.chat.id
-    #print(update)
     if str(chat_id) == ADMIN_CHAT_ID:
         await update.message.reply_text("Welcome in admin chat!")
     else:
         #message to admin chat
-        #message = f'/start message was recieved from chat {chat_id}'
-        #write_json('add_chat_data.json', update.to_dict())
         await context.bot.send_message(
             ADMIN_CHAT_ID,
             "Someone is trying to update poll chat id!\n"
             f"If it is OK type command /update_chat_id {chat_id}",
             parse_mode=ParseMode.HTML,
     )
-        
+
 
 async def update_chat_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Save data from admin chat with /start """
@@ -64,9 +83,8 @@ def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     return True
 
 
-async def set_timer(update: Update, context: ContextTypes.DEFAULT_TYPE, poll_chat_id) -> None:
+async def set_timer(context: ContextTypes.DEFAULT_TYPE, poll_chat_id) -> None:
     """Add a close poll job to the queue."""
-    #last_poll = get_last_poll(DB_NAME)
     admin_chat_id = ADMIN_CHAT_ID
     chat_id = poll_chat_id
     close_datetime = CLOSE_TIME_SEC    
@@ -82,14 +100,11 @@ async def set_timer(update: Update, context: ContextTypes.DEFAULT_TYPE, poll_cha
         f"Timer successfuly set on {timer_time}!",
         parse_mode=ParseMode.HTML,
     )
-    #await update.effective_message.reply_text(text)
 
 
 async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Sends a predefined poll"""
-    #chat_id = update.message.chat.id
     if str(update.message.chat.id) == ADMIN_CHAT_ID:
-        config = read_config(CONFIG_PATH)
         chat_id = config.get('tgbot', 'POLL_CHAT_ID')
         questions = ["Да", "Не в этот раз"]
         try:
@@ -115,9 +130,14 @@ async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             allows_multiple_answers=False,
         )
         update_tinydb(DB_NAME, 'polls_data', [message.to_dict()])
-
         #correct timer message
-        await set_timer(update, context, chat_id)
+        await set_timer(context, chat_id)
+        #add cands for test
+        try:
+            if context.args[0] == 'test':
+                add_test_cands(DB_NAME)
+        except (IndexError):
+            pass
 
 
 async def receive_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -144,10 +164,7 @@ async def close_poll_sch(context: ContextTypes.DEFAULT_TYPE):
 
 async def close_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Close the poll"""
-    #add cands for test
-    add_test_cands(DB_NAME)
     #set ids
-    #print(context)
     last_poll = get_last_poll(DB_NAME)
     chat_id = last_poll['chat']['id']
     message_id = last_poll['message_id']
@@ -156,12 +173,6 @@ async def close_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     update_last_poll(DB_NAME, message.to_dict())
     #print message with pairs
     chat_message = main_message(DB_NAME)
-    #await context.bot.send_message(
-    #        chat_id,
-    #        chat_message,
-    #        #'Poll is closed!',
-    #        parse_mode=ParseMode.HTML,
-    #    )
     await context.bot.sendPhoto(chat_id=chat_id, photo=
         POll_IMG_URL, caption=chat_message)
 
@@ -172,7 +183,6 @@ async def receive_meet_result(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = '@' + update.effective_user.username
     message = update.effective_message
     pair = parse_pair(user, str(message))
-    print(pair)
     if pair:
         update_match_status(DB_NAME, pair)
     else:
@@ -188,7 +198,8 @@ def main() -> None:
     application.add_handler(CommandHandler("update_chat_id", update_chat_id))
     application.add_handler(CommandHandler("poll", poll))
     application.add_handler(CommandHandler("close_poll", close_poll))
-    application.add_handler(MessageHandler(filters.Regex('#random')|filters.Regex('#rc'), receive_meet_result))
+    hashtag_filter = filters.Regex('#random')|filters.Regex('#rc')
+    application.add_handler(MessageHandler(hashtag_filter, receive_meet_result))
     application.add_handler(PollAnswerHandler(receive_poll_answer))
 
     # Run the bot until the user presses Ctrl-C
@@ -196,12 +207,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    CONFIG_PATH = 'config.ini'
-    config = read_config(CONFIG_PATH)
-    BOT_TOKEN = config.get('tgbot', 'TOKEN')
-    #FILE_NAME = config.get('gsheet', 'FILE_NAME')
-    CLOSE_TIME_SEC = int(config.get('tgbot', 'CLOSE_TIME_SEC'))
-    DB_NAME = config.get('tgbot', 'DB_NAME')
-    ADMIN_CHAT_ID = config.get('tgbot', 'ADMIN_CHAT_ID')
-    POll_IMG_URL = config.get('tgbot', 'POll_IMG_URL')
     main()
+# End-of-file (EOF)

@@ -1,12 +1,17 @@
+"""
+OT_random_coffee_bot
+Utils 4 database (TinyDB)
+"""
+
 import json
-import pygsheets
-import pandas as pd
-import numpy as np
 import configparser
-from tinydb import TinyDB, Query
 from random import randrange
 from time import time, strftime, localtime
 import re
+import pygsheets
+import pandas as pd
+import numpy as np
+from tinydb import TinyDB, Query
 
 
 def write_json(filename, data):
@@ -29,25 +34,15 @@ def get_gsheet(file_name):
     return gsheet
 
 
-def open_tinydb(db_name):
-    """Open TinyDB is it is necessarily"""
-    try:
-        if db._opened:
-            pass
-    except:
-        db = TinyDB(db_name)
-    return db
-
-
 def read_tinydb(db_name, table_name):
     """Read TinyDB"""
-    db = open_tinydb(db_name)
+    db = TinyDB(db_name)
     return db.table(table_name)
 
 
 def update_tinydb(db_name, table_name, records):
     """Update TinyDB"""
-    db = open_tinydb(db_name)
+    db = TinyDB(db_name)
     table = db.table(table_name)
     table.insert_multiple(records)
     return db.close()
@@ -55,7 +50,7 @@ def update_tinydb(db_name, table_name, records):
 
 def update_poll_chat_id(path, chat_id):
     """Update poll chat id in config"""
-    #db = open_tinydb(db_name)
+    #db = TinyDB(db_name)
     #table = db.table('admin_chat_data')
     #last_doc_id = table.all()[-1].doc_id
     #table.update({'poll_chat_id': update}, doc_ids=[last_doc_id])
@@ -63,12 +58,13 @@ def update_poll_chat_id(path, chat_id):
     config = configparser.ConfigParser()
     config.read(path)
     config.set("tgbot", "POLL_CHAT_ID", chat_id)
-    with open(path, "w") as config_file:
+    with open(path, "w", encoding='UTF-8') as config_file:
         config.write(config_file)
 
 
 def update_last_poll(db_name, update):
-    db = open_tinydb(db_name)
+    """Update last poll info"""
+    db = TinyDB(db_name)
     table = db.table('polls_data')
     last_doc_id = table.all()[-1].doc_id
     table.update({'poll': update}, doc_ids=[last_doc_id])
@@ -76,11 +72,12 @@ def update_last_poll(db_name, update):
 
 
 def remove_answer(db_name, user_id, poll_id):
+    """Remove answer if user retract it"""
     ans_table = read_tinydb(db_name, 'answers_table')
-    query = Query().user.fragment({'id': int(user_id)}) & Query().fragment({'poll_id': str(poll_id)})
-    answers = ans_table.search(query)
+    que = Query().user.fragment({'id': int(user_id)}) & Query().fragment({'poll_id': str(poll_id)})
+    answers = ans_table.search(que)
     doc_ids = [answer.doc_id for answer in answers]
-    ans_table.remove(doc_ids = doc_ids)	
+    ans_table.remove(doc_ids = doc_ids)
 
 
 def get_matches(db_name):
@@ -113,6 +110,7 @@ def cand_name(args):
 
 
 def get_last_poll(db_name):
+    """Get last poll info from DB"""
     polls_table = read_tinydb(db_name, 'polls_data')
     last_poll = polls_table.all()[-1]
     return last_poll
@@ -144,10 +142,11 @@ def make_pairs(cands, new_cands, matrix):
     """Make pairs"""
     last_user = ''
     pairs = []
+    #extra_candidate = ''
     cands_count = len(cands) + len(new_cands)
     if cands_count == 0:
         return pairs, last_user
-    elif cands_count < 2:
+    if cands_count < 2:
         if cands:
             last_user = cands[-1]
         else:
@@ -186,7 +185,7 @@ def make_message(pairs, last_user):
     if last_user:
         message += f'''Не хватило пары: {last_user}\n\
 Напиши ему\ей, если не успел(а) отметиться, и хочешь встречу на этой неделе.'''
-    message += 'Мы всегда рады видеть ваши улыбающиеся лица, делитесь фотографиями со встреч с хэштегом #RANDOMCOFFEE! 😉'''
+    message += 'Мы всегда рады видеть ваши улыбающиеся лица, делитесь фотографиями со встреч с хэштегом #RANDOMCOFFEE! 😉'
     return message
 
 
@@ -212,8 +211,7 @@ def parse_pair(user, message):
     pairs = re.findall('@\w+', message)
     if pairs:
         return [user, pairs[-1]]
-    else:
-        return []
+    return []
 
 
 def update_match_status(db_name, pair):
@@ -222,7 +220,7 @@ def update_match_status(db_name, pair):
     last_poll_date = get_last_poll(db_name)['date']
     last_poll_date = strftime('%d.%m.%Y', localtime(last_poll_date))
     #look for pairs matches
-    db = open_tinydb(db_name)
+    db = TinyDB(db_name)
     table = db.table('matrix_table')
     qpair_1 = Query().pair_1.one_of(pair)
     qpair_2 = Query().pair_2.one_of(pair)
@@ -258,7 +256,9 @@ def add_test_cands(db_name):
 
 
 def main_message(db_name):
-    matrix = match_matrix(get_matches(db_name))
+    '''Make final massage for poll'''
+    matches = get_matches(db_name)
+    matrix = match_matrix(matches)
     cands, new_cands = get_cands(db_name, matrix)
     pairs, last_user = make_pairs(cands, new_cands, matrix)
     message = make_message(pairs, last_user)
@@ -267,17 +267,19 @@ def main_message(db_name):
 
 
 def main():
+    '''Main function for test'''
     config = read_config('config.ini')
-    FILE_NAME = config.get('gsheet', 'FILE_NAME')
-    DB_NAME = config.get('tgbot', 'DB_NAME')
-
+    #FILE_NAME = config.get('gsheet', 'FILE_NAME')
+    db_name = config.get('tgbot', 'DB_NAME')
     #gc = pygsheets.authorize() #first time authentication
     #sh = gc.open(FILE_NAME)
     #save_match_data(sh[0], DB_NAME)
-
-    message = main_message(DB_NAME)
+    message = main_message(db_name)
     print(message)
-   
+    #matrix_table = read_tinydb(db_name, 'matrix_table')
+    #print(matrix_table)
+
 
 if __name__ == "__main__":
     main()
+# End-of-file (EOF)
