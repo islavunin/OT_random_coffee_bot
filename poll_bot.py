@@ -2,8 +2,10 @@
 OT_random_coffee_bot
 """
 
-import logging
 from time import time, strftime, localtime
+import logging
+from datetime import time as dtime
+from pytz import timezone
 
 from telegram import Update
 from telegram.constants import ParseMode
@@ -47,6 +49,7 @@ CLOSE_TIME_SEC = int(config.get('tgbot', 'CLOSE_TIME_SEC'))
 DB_NAME = config.get('tgbot', 'DB_NAME')
 ADMIN_CHAT_ID = config.get('tgbot', 'ADMIN_CHAT_ID')
 POll_IMG_URL = config.get('tgbot', 'POll_IMG_URL')
+#EXTRA_CAND = config.get('tgbot', 'EXTRA_CANDIDATE')
 
 
 async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -71,6 +74,15 @@ async def update_chat_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if str(chat_id) == ADMIN_CHAT_ID:
         update_poll_chat_id(CONFIG_PATH, poll_chat_id)
         await update.message.reply_text(f"Poll chat id was updated to {poll_chat_id}!")
+
+
+async def post_daily_message(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Save data from admin chat with /start """
+    await context.bot.send_message(
+        ADMIN_CHAT_ID,
+        "Good morning, I'm on duty!",
+        parse_mode=ParseMode.HTML,
+    )
 
 
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -136,7 +148,7 @@ async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         try:
             if context.args[0] == 'test':
                 add_test_cands(DB_NAME)
-        except (IndexError):
+        except IndexError:
             pass
 
 
@@ -183,11 +195,11 @@ async def receive_meet_result(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = '@' + update.effective_user.username
     message = update.effective_message
     pair = parse_pair(user, str(message))
-    if pair:
+    if pair[1]:
         update_match_status(DB_NAME, pair)
     else:
         await update.message.reply_text(
-            f"Будет замечательно, {user}\n, если ты уточнишь с кем прошла встреча!")
+            f"Будет замечательно, {user}, если ты уточнишь, с кем прошла встреча!")
 
 
 def main() -> None:
@@ -201,11 +213,12 @@ def main() -> None:
     hashtag_filter = filters.Regex('#random')|filters.Regex('#rc')
     application.add_handler(MessageHandler(hashtag_filter, receive_meet_result))
     application.add_handler(PollAnswerHandler(receive_poll_answer))
-
+    #post daily message to admin chat if bot will be still running
+    dt = dtime(hour=10, tzinfo=timezone('Europe/Moscow'))
+    application.job_queue.run_daily(post_daily_message, dt, name=str(ADMIN_CHAT_ID))
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
     main()
-# End-of-file (EOF)

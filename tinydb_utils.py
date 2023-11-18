@@ -51,7 +51,7 @@ def update_tinydb(db_name, table_name, records):
 def update_poll_chat_id(path, chat_id):
     """Update poll chat id in config"""
     #db = TinyDB(db_name)
-    #table = db.table('admin_chat_data')
+    #table = db.table('settings')
     #last_doc_id = table.all()[-1].doc_id
     #table.update({'poll_chat_id': update}, doc_ids=[last_doc_id])
     #db.close()
@@ -138,27 +138,37 @@ def get_cands(db_name, matrix):
     return cands, new_cands
 
 
-def make_pairs(cands, new_cands, matrix):
+def make_pairs(db_name, cands, new_cands, matrix):
     """Make pairs"""
     last_user = ''
     pairs = []
-    #extra_candidate = ''
     cands_count = len(cands) + len(new_cands)
     if cands_count == 0:
         return pairs, last_user
-    if cands_count < 2:
-        if cands:
-            last_user = cands[-1]
-        else:
-            last_user = new_cands[-1]
-        return pairs, last_user     
-    #if len(new_cands) > len(cands): ?
-
+    if cands_count % 2 != 0:
+        extra_cand = read_tinydb(db_name, 'settings').all()[0]['extra_cand']
+        if extra_cand:
+            cands.append(extra_cand)
+        elif cands_count < 2:
+            if cands:
+                last_user = cands[-1]
+            else:
+                last_user = new_cands[-1]
+            return pairs, last_user
+    if len(new_cands) > len(cands):
+        print('before', new_cands, cands)
+        diff = len(new_cands) - len(cands)
+        idx = diff // 2
+        cands.extend(new_cands[-idx:])
+        del new_cands[-idx:]
+        print('after', new_cands, cands)
     #distribute new candidates at first
     while new_cands:
         cand = new_cands.pop(0)
         pair = cands.pop(randrange(len(cands)))
         pairs.append([cand, pair])
+        if len(new_cands) == 1:
+            last_user = new_cands.pop(0)
     #distribute other candidates
     while cands:
         cand = cands.pop(0)
@@ -184,7 +194,7 @@ def make_message(pairs, last_user):
     message += 'Напиши собеседнику в личку, чтобы договориться об удобном времени и формате встречи ☕️\n'
     if last_user:
         message += f'''Не хватило пары: {last_user}\n\
-Напиши ему\ей, если не успел(а) отметиться, и хочешь встречу на этой неделе.'''
+Напиши ему/ей, если не успел(а) отметиться, и хочешь встречу на этой неделе.\n'''
     message += 'Мы всегда рады видеть ваши улыбающиеся лица, делитесь фотографиями со встреч с хэштегом #RANDOMCOFFEE! 😉'
     return message
 
@@ -208,10 +218,10 @@ def save_pairs(db_name, pairs):
 
 def parse_pair(user, message):
     '''Parse pairs from result message'''
-    pairs = re.findall('@\w+', message)
-    if pairs:
-        return [user, pairs[-1]]
-    return []
+    pair = re.findall(r'@\w+', message)
+    if pair:
+        return [user, pair[-1]]
+    return [user, ""]
 
 
 def update_match_status(db_name, pair):
@@ -228,16 +238,30 @@ def update_match_status(db_name, pair):
     results = table.search(qpair_1 & qpair_2 & qdate)
     doc_ids = [result.doc_id for result in results]
     #update table
-    table.update({'status': "TRUE"}, doc_ids=doc_ids)
+    dt = strftime('%d.%m.%Y', localtime(time()))
+    if doc_ids:
+        table.update({
+            "match_date": dt,
+            'status': "TRUE"
+            },
+            doc_ids=doc_ids)
+    else:
+        record = {
+            "match_date": dt,
+            "pair_1": pair[0],
+            "pair_2": pair[1],
+            "status": "TRUE"
+        }
+        table.insert(record)
     return db.close()
 
 
 def add_test_cands(db_name):
     '''Add cands for test'''
-    #get last poll 
+    #get last poll
     last_poll_id = get_last_poll(db_name)['poll']['id']
     #get list of names
-    table = read_tinydb(db_name, 'admin_chat_data')
+    table = read_tinydb(db_name, 'settings')
     cands = table.all()[-1]['test_cands']
     #update answers table
     records = []
@@ -260,7 +284,7 @@ def main_message(db_name):
     matches = get_matches(db_name)
     matrix = match_matrix(matches)
     cands, new_cands = get_cands(db_name, matrix)
-    pairs, last_user = make_pairs(cands, new_cands, matrix)
+    pairs, last_user = make_pairs(db_name, cands, new_cands, matrix)
     message = make_message(pairs, last_user)
     save_pairs(db_name, pairs)
     return message
@@ -282,4 +306,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-# End-of-file (EOF)
