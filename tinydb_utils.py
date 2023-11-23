@@ -293,16 +293,12 @@ def main_message(db_name):
 
 def main():
     '''Main function for test'''
+    #test module
     config = read_config('config.ini')
-    #FILE_NAME = config.get('gsheet', 'FILE_NAME')
     db_name = config.get('tgbot', 'DB_NAME')
-    #gc = pygsheets.authorize() #first time authentication
-    #sh = gc.open(FILE_NAME)
-    #save_match_data(sh[0], DB_NAME)
     message = main_message(db_name)
     print(message)
-    #matrix_table = read_tinydb(db_name, 'matrix_table')
-    #print(matrix_table)
+
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ OT_random_coffee_bot
 
 from time import time, strftime, localtime
 import logging
+import os
 from datetime import time as dtime
 from pytz import timezone
 
@@ -41,7 +42,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
-CONFIG_PATH = 'config.ini'
+CONFIG_PATH = os.path.join(os.getcwd(), 'config.ini')
 config = read_config(CONFIG_PATH)
 BOT_TOKEN = config.get('tgbot', 'TOKEN')
 #FILE_NAME = config.get('gsheet', 'FILE_NAME')
