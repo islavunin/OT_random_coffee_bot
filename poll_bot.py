@@ -54,7 +54,14 @@ POll_IMG_URL = config.get('tgbot', 'POll_IMG_URL')
 
 async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Save data from admin chat with /start """
+    #add topic info: "message_thread_id"
+    #print(update)
     chat_id = update.message.chat.id
+    try:
+        msg_thread_id = update.message.reply_to_message.message_thread_id
+    except AttributeError:
+        msg_thread_id = "" #"General"
+    #print(msg_thread_id)
     if str(chat_id) == ADMIN_CHAT_ID:
         await update.message.reply_text("Welcome in admin chat!")
     else:
@@ -62,7 +69,7 @@ async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await context.bot.send_message(
             ADMIN_CHAT_ID,
             "Someone is trying to update poll chat id!\n"
-            f"If it is OK type command /update_chat_id {chat_id}",
+            f"If it is OK type command /update_chat_id {chat_id} {msg_thread_id}",
             parse_mode=ParseMode.HTML,
     )
 
@@ -70,10 +77,12 @@ async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def update_chat_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Save data from admin chat with /start """
     poll_chat_id = context.args[0]
+    msg_thread_id = context.args[1]
     chat_id = update.message.chat.id
     if str(chat_id) == ADMIN_CHAT_ID:
-        update_poll_chat_id(CONFIG_PATH, poll_chat_id)
-        await update.message.reply_text(f"Poll chat id was updated to {poll_chat_id}!")
+        update_poll_chat_id(CONFIG_PATH, poll_chat_id, msg_thread_id)
+        msg = f"Poll chat id was updated to {poll_chat_id} thread {msg_thread_id}!"
+        await update.message.reply_text(msg)
 
 
 async def post_daily_message(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -99,7 +108,7 @@ async def set_timer(context: ContextTypes.DEFAULT_TYPE, poll_chat_id) -> None:
     """Add a close poll job to the queue."""
     admin_chat_id = ADMIN_CHAT_ID
     chat_id = poll_chat_id
-    close_datetime = CLOSE_TIME_SEC    
+    close_datetime = CLOSE_TIME_SEC
     job_removed = remove_job_if_exists(str(chat_id), context)
     context.job_queue.run_once(close_poll_sch, close_datetime, chat_id=chat_id, name=str(chat_id))
     text = "Close poll timer successfully set!"
@@ -117,7 +126,9 @@ async def set_timer(context: ContextTypes.DEFAULT_TYPE, poll_chat_id) -> None:
 async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Sends a predefined poll"""
     if str(update.message.chat.id) == ADMIN_CHAT_ID:
-        chat_id = config.get('tgbot', 'POLL_CHAT_ID')
+        conf = read_config(CONFIG_PATH)
+        chat_id = conf.get('tgbot', 'POLL_CHAT_ID')
+        msg_thread_id = conf.get('tgbot', 'msg_thread_id')
         questions = ["Да", "Не в этот раз"]
         try:
             last_poll = get_last_poll(DB_NAME)
@@ -132,7 +143,7 @@ async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         with open('message.txt', 'r', encoding='UTF-8') as f:
             start_message = f.read()
         await context.bot.sendPhoto(chat_id=chat_id, photo=
-            POll_IMG_URL, caption=start_message)
+            POll_IMG_URL, caption=start_message, message_thread_id=msg_thread_id)
         message = await context.bot.send_poll(
             chat_id,
             #update.effective_chat.id,
@@ -140,6 +151,7 @@ async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             questions,
             is_anonymous=False,
             allows_multiple_answers=False,
+            message_thread_id=msg_thread_id
         )
         update_tinydb(DB_NAME, 'polls_data', [message.to_dict()])
         #correct timer message
@@ -177,6 +189,7 @@ async def close_poll_sch(context: ContextTypes.DEFAULT_TYPE):
 async def close_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Close the poll"""
     #set ids
+    msg_thread_id = read_config(CONFIG_PATH).get('tgbot', 'msg_thread_id')
     last_poll = get_last_poll(DB_NAME)
     chat_id = last_poll['chat']['id']
     message_id = last_poll['message_id']
@@ -186,7 +199,7 @@ async def close_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     #print message with pairs
     chat_message = main_message(DB_NAME)
     await context.bot.sendPhoto(chat_id=chat_id, photo=
-        POll_IMG_URL, caption=chat_message)
+        POll_IMG_URL, caption=chat_message, message_thread_id=msg_thread_id)
 
 
 async def receive_meet_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

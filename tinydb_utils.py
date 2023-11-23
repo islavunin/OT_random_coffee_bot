@@ -48,7 +48,7 @@ def update_tinydb(db_name, table_name, records):
     return db.close()
 
 
-def update_poll_chat_id(path, chat_id):
+def update_poll_chat_id(path, chat_id, msg_thread_id):
     """Update poll chat id in config"""
     #db = TinyDB(db_name)
     #table = db.table('settings')
@@ -58,6 +58,7 @@ def update_poll_chat_id(path, chat_id):
     config = configparser.ConfigParser()
     config.read(path)
     config.set("tgbot", "POLL_CHAT_ID", chat_id)
+    config.set("tgbot", "msg_thread_id", msg_thread_id)
     with open(path, "w", encoding='UTF-8') as config_file:
         config.write(config_file)
 
