@@ -4,7 +4,8 @@ OT_random_coffee_bot
 
 from time import time, strftime, localtime
 import logging
-import os
+#import os
+from pathlib import Path
 from datetime import time as dtime
 from pytz import timezone
 
@@ -41,15 +42,15 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
-
-CONFIG_PATH = os.path.join(os.getcwd(), 'config.ini')
+THIS_FOLDER = Path(__file__).parent.resolve()
+CONFIG_PATH =  THIS_FOLDER / 'config.ini'  #os.path.join(os.getcwd(), 'config.ini')
 config = read_config(CONFIG_PATH)
 BOT_TOKEN = config.get('tgbot', 'TOKEN')
 #FILE_NAME = config.get('gsheet', 'FILE_NAME')
 CLOSE_TIME_SEC = int(config.get('tgbot', 'CLOSE_TIME_SEC'))
 DB_NAME = config.get('tgbot', 'DB_NAME')
 ADMIN_CHAT_ID = config.get('tgbot', 'ADMIN_CHAT_ID')
-POll_IMG_URL = config.get('tgbot', 'POll_IMG_URL')
+POll_IMG_URL = THIS_FOLDER / config.get('tgbot', 'POll_IMG_URL')
 #EXTRA_CAND = config.get('tgbot', 'EXTRA_CANDIDATE')
 
 
@@ -141,7 +142,7 @@ async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         except (KeyError, AttributeError):
             pass
         #send poll to chat
-        with open('message.txt', 'r', encoding='UTF-8') as f:
+        with open(THIS_FOLDER / 'message.txt', 'r', encoding='UTF-8') as f:
             start_message = f.read()
         await context.bot.sendPhoto(chat_id=chat_id, photo=
             POll_IMG_URL, caption=start_message, message_thread_id=msg_thread_id)
