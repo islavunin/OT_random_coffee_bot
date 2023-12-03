@@ -8,7 +8,6 @@ import configparser
 from random import randrange
 from time import time, strftime, localtime
 import re
-import pygsheets
 import pandas as pd
 import numpy as np
 from tinydb import TinyDB, Query
@@ -27,13 +26,6 @@ def read_config(config_name):
     return config
 
 
-def get_gsheet(file_name):
-    """Get google sheet"""
-    gc = pygsheets.authorize() #first time authentication
-    gsheet = gc.open(file_name)
-    return gsheet
-
-
 def read_tinydb(db_name, table_name):
     """Read TinyDB"""
     db = TinyDB(db_name)
@@ -50,11 +42,6 @@ def update_tinydb(db_name, table_name, records):
 
 def update_poll_chat_id(path, chat_id, msg_thread_id):
     """Update poll chat id in config"""
-    #db = TinyDB(db_name)
-    #table = db.table('settings')
-    #last_doc_id = table.all()[-1].doc_id
-    #table.update({'poll_chat_id': update}, doc_ids=[last_doc_id])
-    #db.close()
     config = configparser.ConfigParser()
     config.read(path)
     config.set("tgbot", "POLL_CHAT_ID", chat_id)
@@ -88,13 +75,19 @@ def get_matches(db_name):
     return df
 
 
-def match_matrix(df):
+def match_matrix(df, cands):
     """Make matching matrix from match history"""
-    df['status'] = df['status'].map({'FALSE': 0, 'TRUE': 1})
+    df['status'] = df['status'].map({'FALSE': 1, 'TRUE': 1})
     df = df[['pair_1', 'pair_2', 'status']]
     df_re = df.rename(columns={'pair_2':'pair_1', 'pair_1':'pair_2'})
-    matrix = pd.concat([df, df_re])
-    matrix = pd.pivot_table(matrix,
+    df = pd.concat([df, df_re])
+    #add new cands
+    new_cands = list(set(cands).difference(set(df.pair_1)))
+    new_cands_list = [[cand, cand, 0] for cand in new_cands]
+    new_cands_df = pd.DataFrame(new_cands_list, columns=df.columns)
+    df = pd.concat([df, new_cands_df], ignore_index=True)
+    #make pivot table of meetings
+    matrix = pd.pivot_table(df,
                             columns='pair_2',
                             index='pair_1',
                             values='status',
@@ -106,8 +99,7 @@ def cand_name(args):
     """Extract cand name from answer. 4 apply in get_cands()"""
     if str(args[0]) != 'nan':
         return '@' + args[0]
-    else:
-        return str(args[1]) + " " + str(args[2])
+    return str(args[1]) + " " + str(args[2])
 
 
 def get_last_poll(db_name):
@@ -117,7 +109,7 @@ def get_last_poll(db_name):
     return last_poll
 
 
-def get_cands(db_name, matrix):
+def get_cands(db_name):
     """Get all answers from last poll and prepare lists of metting candidates"""
     #get last poll id
     last_poll = get_last_poll(db_name)
@@ -132,18 +124,15 @@ def get_cands(db_name, matrix):
         if key not in answers.columns:
             answers[key] = np.nan
     cands = answers.apply(lambda x: cand_name([x[key] for key in ans_keys]), axis=1)
-    cands = set(cands)
-    new_cands = cands.difference(set(matrix.index))
-    cands = list(cands.difference(new_cands))
-    new_cands = list(new_cands)
-    return cands, new_cands
+    return cands.to_list()
 
 
-def make_pairs(db_name, cands, new_cands, matrix):
+def make_pairs(db_name, cands, matrix):
     """Make pairs"""
     last_user = ''
     pairs = []
-    cands_count = len(cands) + len(new_cands)
+    cands = matrix[cands].sum().sort_values(ascending=False).index.to_list()
+    cands_count = len(cands)
     if cands_count == 0:
         return pairs, last_user
     if cands_count % 2 != 0:
@@ -151,26 +140,8 @@ def make_pairs(db_name, cands, new_cands, matrix):
         if extra_cand:
             cands.append(extra_cand)
         elif cands_count < 2:
-            if cands:
-                last_user = cands[-1]
-            else:
-                last_user = new_cands[-1]
+            last_user = cands[-1]
             return pairs, last_user
-    if len(new_cands) > len(cands):
-        print('before', new_cands, cands)
-        diff = len(new_cands) - len(cands)
-        idx = diff // 2
-        cands.extend(new_cands[-idx:])
-        del new_cands[-idx:]
-        print('after', new_cands, cands)
-    #distribute new candidates at first
-    while new_cands:
-        cand = new_cands.pop(0)
-        pair = cands.pop(randrange(len(cands)))
-        pairs.append([cand, pair])
-        if len(new_cands) == 1:
-            last_user = new_cands.pop(0)
-    #distribute other candidates
     while cands:
         cand = cands.pop(0)
         cand_matrix = matrix[cand][cands]
@@ -187,9 +158,9 @@ def make_pairs(db_name, cands, new_cands, matrix):
 
 def make_message(pairs, last_user):
     """Make final poll message"""
-    message = '''Привет, ОптиТим!\n\
+    message = '''<b>Привет, ОптиТим!\n\
 Пары для участия в RANDOM COFFEE на ближайшие 2 недели составлены!\n\
-Ищи в списке ниже:\n'''
+Ищи в списке ниже:</b>\n'''
     for pair in pairs:
         message += f'{pair[0]} x {pair[1]}\n'
     message += 'Напиши собеседнику в личку, чтобы договориться об удобном времени и формате встречи ☕️\n'
@@ -283,11 +254,11 @@ def add_test_cands(db_name):
 def main_message(db_name):
     '''Make final massage for poll'''
     matches = get_matches(db_name)
-    matrix = match_matrix(matches)
-    cands, new_cands = get_cands(db_name, matrix)
-    pairs, last_user = make_pairs(db_name, cands, new_cands, matrix)
+    cands = get_cands(db_name)
+    matrix = match_matrix(matches, cands)
+    pairs, last_user = make_pairs(db_name, cands, matrix)
     message = make_message(pairs, last_user)
-    save_pairs(db_name, pairs)
+    #save_pairs(db_name, pairs)
     return message
 
 

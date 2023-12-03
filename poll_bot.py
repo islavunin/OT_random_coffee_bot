@@ -54,6 +54,28 @@ POll_IMG_URL = THIS_FOLDER / config.get('tgbot', 'POll_IMG_URL')
 #EXTRA_CAND = config.get('tgbot', 'EXTRA_CANDIDATE')
 
 
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Inform user about what this bot can do"""
+    await update.message.reply_text(
+        "If you want to start random coffee activity you should first"
+        "select /add_chat to add chat you want to your config"
+        "after that you will receive a message with comand and chat id"
+        "if you commit it you you will be able to start random coffee"
+        "you could do it at the choosen chat with /poll command"
+        "after /poll you can specify the time for which this poll will be opening"
+        "when the poll will be closed bot semd message to choosen chat with pairs for random coffee"
+        "and will be received result of the meetings with #randomcoffee hashtag"
+    )
+    
+    
+async def test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Inform user about what this bot can do"""
+    await update.message.reply_text(
+        main_message(DB_NAME),
+        parse_mode='html'
+    )
+
+
 async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Save data from admin chat with /start """
     #add topic info: "message_thread_id"
@@ -157,13 +179,13 @@ async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         update_tinydb(DB_NAME, 'polls_data', [message.to_dict()])
         #correct timer message
-        await set_timer(context, chat_id)
-        #add cands for test
         try:
             if context.args[0] == 'test':
                 add_test_cands(DB_NAME)
         except IndexError:
             pass
+        await set_timer(context, chat_id)
+        #add cands for test
 
 
 async def receive_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -221,6 +243,7 @@ def main() -> None:
     """Run bot."""
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("test", test))
     application.add_handler(CommandHandler("add_chat", add_chat))
     application.add_handler(CommandHandler("update_chat_id", update_chat_id))
     application.add_handler(CommandHandler("poll", poll))
