@@ -4,6 +4,7 @@ OT_random_coffee_bot
 
 from time import time, strftime, localtime
 import logging
+import pathlib
 #import os
 from pathlib import Path
 from datetime import time as dtime
@@ -30,7 +31,8 @@ from tinydb_utils import (
     parse_pair,
     update_match_status,
     main_message,
-    add_test_cands
+    add_test_cands,
+    make_stat_plot
 )
 
 # Enable logging
@@ -60,20 +62,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "If you want to start random coffee activity you should first"
         "select /add_chat to add chat you want to your config"
         "after that you will receive a message with comand and chat id"
-        "if you commit it you you will be able to start random coffee"
+        "if you commit the command you you will be able to start random coffee poll"
         "you could do it at the choosen chat with /poll command"
-        "after /poll you can specify the time for which this poll will be opening"
-        "when the poll will be closed bot semd message to choosen chat with pairs for random coffee"
-        "and will be received result of the meetings with #randomcoffee hashtag"
+        "after /poll you can specify the time for which this poll will be opened"
+        "when the poll will be closed bot send message to the chat with random pairs"
     )
-    
-    
+
+
 async def test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Inform user about what this bot can do"""
-    await update.message.reply_text(
-        main_message(DB_NAME),
+    make_stat_plot(DB_NAME)
+    await update.message.reply_photo(
+        "out.png",
+        "<b>Статистика встреч Random Coffee</b>",
         parse_mode='html'
     )
+    pathlib.Path("out.png").unlink(missing_ok=False)
 
 
 async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -167,7 +171,7 @@ async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         with open(THIS_FOLDER / 'message.txt', 'r', encoding='UTF-8') as f:
             start_message = f.read()
         await context.bot.sendPhoto(chat_id=chat_id, photo=
-            POll_IMG_URL, caption=start_message, message_thread_id=msg_thread_id)
+            POll_IMG_URL, caption=start_message, message_thread_id=msg_thread_id, parse_mode='html')
         message = await context.bot.send_poll(
             chat_id,
             #update.effective_chat.id,
@@ -223,7 +227,7 @@ async def close_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     #print message with pairs
     chat_message = main_message(DB_NAME)
     await context.bot.sendPhoto(chat_id=chat_id, photo=
-        POll_IMG_URL, caption=chat_message, message_thread_id=msg_thread_id)
+        POll_IMG_URL, caption=chat_message, message_thread_id=msg_thread_id, parse_mode='html')
 
 
 async def receive_meet_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
