@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 from tinydb import TinyDB, Query
 import matplotlib.pyplot as plt
-import seaborn as sns
+#import seaborn as sns
 
 
 def write_json(filename, data):
@@ -253,26 +253,26 @@ def add_test_cands(db_name):
     return update_tinydb(db_name, 'answers_table', records)
 
 
-def make_stat_plot(db_name):
-    "Make plot with random coffee statistics"
-    matches = get_matches(db_name)
-    matches.match_date = pd.to_datetime(matches.match_date, format='%d.%m.%Y')
-    matches_plot = matches.groupby('match_date').status.count().sort_index()
-    plt.figure(figsize=(7, 3))
-    font = {'family': 'Verdana',
-            'color':  '#8068bc',
-            'weight': 'normal',
-            'size': 11}
-    ax = sns.barplot(matches_plot, color="#d971b0")
-    ax.margins(y=0.1)
-    ax.bar_label(ax.containers[0], fontsize=9)
-    ax.set_xlabel('Даты мэтчинга')
-    ax.set_ylabel('Количество пар')
-    ax.set_title('Динамика участия в Random coffee',
-                    fontdict=font, loc='left')
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=45,
-                            horizontalalignment='right', font={'size': 8})
-    ax.get_figure().savefig("out.png", bbox_inches='tight')
+#def make_stat_plot(db_name):
+#    "Make plot with random coffee statistics"
+#    matches = get_matches(db_name)
+#    matches.match_date = pd.to_datetime(matches.match_date, format='%d.%m.%Y')
+#    matches_plot = matches.groupby('match_date').status.count().sort_index()
+#    plt.figure(figsize=(7, 3))
+#    font = {'family': 'Verdana',
+#            'color':  '#8068bc',
+#            'weight': 'normal',
+#            'size': 11}
+#    ax = sns.barplot(matches_plot, color="#d971b0")
+#    ax.margins(y=0.1)
+#    ax.bar_label(ax.containers[0], fontsize=9)
+#    ax.set_xlabel('Даты мэтчинга')
+#    ax.set_ylabel('Количество пар')
+#    ax.set_title('Динамика участия в Random coffee',
+#                    fontdict=font, loc='left')
+#    ax.set_xticklabels(ax.get_xticklabels(), rotation=45,
+#                            horizontalalignment='right', font={'size': 8})
+#    ax.get_figure().savefig("out.png", bbox_inches='tight')
 
 
 def main_message(db_name):

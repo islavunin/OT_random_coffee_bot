@@ -4,7 +4,7 @@ OT_random_coffee_bot
 
 from time import time, strftime, localtime
 import logging
-import pathlib
+#import pathlib
 #import os
 from pathlib import Path
 from datetime import time as dtime
@@ -31,8 +31,8 @@ from tinydb_utils import (
     parse_pair,
     update_match_status,
     main_message,
-    add_test_cands,
-    make_stat_plot
+    add_test_cands
+    #make_stat_plot
 )
 
 # Enable logging
@@ -69,15 +69,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Inform user about what this bot can do"""
-    make_stat_plot(DB_NAME)
-    await update.message.reply_photo(
-        "out.png",
-        "<b>Статистика встреч Random Coffee</b>",
-        parse_mode='html'
-    )
-    pathlib.Path("out.png").unlink(missing_ok=False)
+#async def test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+#    """Inform user about what this bot can do"""
+#    make_stat_plot(DB_NAME)
+#    await update.message.reply_photo(
+#        "out.png",
+#        "<b>Статистика встреч Random Coffee</b>",
+#        parse_mode='html'
+#    )
+#    pathlib.Path("out.png").unlink(missing_ok=False)
 
 
 async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -247,7 +247,7 @@ def main() -> None:
     """Run bot."""
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("test", test))
+    #application.add_handler(CommandHandler("test", test))
     application.add_handler(CommandHandler("add_chat", add_chat))
     application.add_handler(CommandHandler("update_chat_id", update_chat_id))
     application.add_handler(CommandHandler("poll", poll))
