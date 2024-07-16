@@ -282,7 +282,7 @@ def main_message(db_name):
     matrix = match_matrix(matches, cands)
     pairs, last_user = make_pairs(db_name, cands, matrix)
     message = make_message(pairs, last_user)
-    #save_pairs(db_name, pairs)
+    save_pairs(db_name, pairs)
     return message
 
 
